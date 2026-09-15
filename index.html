@@ -118,6 +118,43 @@
     border:1px solid var(--line);color:#cfe8d6;border-radius:14px;padding:12px;font-family:ui-monospace,Menlo,monospace;
     font-size:12px;max-height:150px;overflow:auto;margin-top:10px;white-space:pre-wrap}
   .pipe-log .g{color:#7ee2a8}.pipe-log .y{color:#f5d67b}.pipe-log .b{color:#8ab8ff}
+  /* ── Infinite canvas (React-Flow style, zero-build) ── */
+  .canvas-wrap{position:relative;height:560px;overflow:hidden;border-radius:18px;border:1px solid var(--line);
+    background:rgba(0,0,0,.32);
+    background-image:radial-gradient(rgba(255,255,255,.13) 1px,transparent 1.4px);
+    background-size:26px 26px;
+    cursor:grab;touch-action:none;user-select:none}
+  .canvas-wrap.panning{cursor:grabbing}
+  .canvas-world{position:absolute;left:0;top:0;transform-origin:0 0}
+  svg.edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+  .edge{fill:none;stroke:rgba(110,231,168,.35);stroke-width:2}
+  .edge.lit{stroke:#6ee7a8;stroke-width:2.6;filter:drop-shadow(0 0 6px rgba(110,231,168,.8))}
+  .edge.flow{stroke-dasharray:8 8;animation:dashmove 1s linear infinite}
+  @keyframes dashmove{to{stroke-dashoffset:-16}}
+  .cluster{position:absolute;border:1px dashed rgba(255,255,255,.16);border-radius:20px;
+    background:rgba(255,255,255,.03);backdrop-filter:blur(6px);pointer-events:none}
+  .cluster-tag{position:absolute;top:-13px;left:14px;font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
+    background:rgba(20,34,27,.92);border:1px solid var(--line);color:var(--leaf-deep);
+    padding:3px 10px;border-radius:999px;pointer-events:none}
+  .cnode{position:absolute;width:252px;background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));
+    backdrop-filter:blur(20px) saturate(1.3);-webkit-backdrop-filter:blur(20px) saturate(1.3);
+    border:1px solid rgba(255,255,255,.2);border-radius:16px;padding:10px 11px;box-shadow:0 10px 30px rgba(0,0,0,.45);
+    cursor:grab;color:var(--ink)}
+  .cnode:active{cursor:grabbing}
+  .cnode.doing-now{border-color:rgba(110,231,168,.7);box-shadow:0 0 0 1px rgba(110,231,168,.4),0 0 26px rgba(110,231,168,.3)}
+  .cnode.done{opacity:.75}
+  .cnode .top{display:flex;gap:8px;align-items:center}
+  .cnode .nm{font-size:13px;font-weight:700;line-height:1.3;flex:1}
+  .cnode .meta{font-size:11px;color:var(--mut);margin-top:5px}
+  .tbadge{margin-top:7px;display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:700;
+    background:rgba(0,0,0,.45);border:1px solid rgba(110,231,168,.45);color:#9df0c3;
+    padding:4px 9px;border-radius:999px;box-shadow:0 0 12px rgba(110,231,168,.18)}
+  .tbadge.over{border-color:rgba(245,214,123,.6);color:#f5d67b}
+  .cnode .go{margin-top:8px;width:100%;font-size:12px;padding:7px}
+  .canvas-bar{position:absolute;right:12px;bottom:12px;display:flex;gap:6px;z-index:5}
+  .canvas-bar button{padding:8px 11px;font-size:13px}
+  .canvas-hint{position:absolute;left:12px;bottom:12px;font-size:11px;color:var(--mut);
+    background:rgba(0,0,0,.45);border:1px solid var(--line);padding:5px 10px;border-radius:999px;z-index:5}
 </style>
 </head>
 <body>
@@ -137,11 +174,12 @@
 <main>
   <div class="card pipe">
     <h2>⚡ Life Pipeline <span class="muted">— like GitHub Actions CI/CD</span></h2>
-    <p class="muted">Workflow <code>life.yml</code> · every job flows <b>queued → waiting → in_progress → success</b>. Click a job to advance it. Tree = stages, Grid = jobs matrix.</p>
+    <p class="muted">Workflow <code>life.yml</code> · every job flows <b>queued → waiting → in_progress → success</b>. Click a job to advance it. Tree = stages, Grid = jobs matrix, Canvas = infinite board (pan/zoom/drag).</p>
     <div class="run-head"><span class="run-dot" id="run-dot"></span><b id="run-title">life.yml</b><code id="run-branch">branch: life/main</code><code id="run-count"></code><span class="muted" id="run-sub"></span></div>
     <div class="pipe-controls">
       <button id="btn-tree" class="on" onclick="setPipeMode('tree')">🌳 Tree</button>
       <button id="btn-grid" onclick="setPipeMode('grid')">▦ Grid</button>
+      <button id="btn-canvas" onclick="setPipeMode('canvas')">✨ Canvas</button>
       <button class="primary" onclick="runFlow()">▶ Run workflow</button>
       <button onclick="resetDay()">↺ Reset run</button>
     </div>
@@ -325,7 +363,7 @@ function addPuzzleTask(){
 }
 /* ── pipeline (CI/CD style) ── */
 window._pipeMode = window._pipeMode || "tree";
-function setPipeMode(m){window._pipeMode=m;document.getElementById("btn-tree").classList.toggle("on",m==="tree");document.getElementById("btn-grid").classList.toggle("on",m==="grid");renderPipe();}
+function setPipeMode(m){window._pipeMode=m;["tree","grid","canvas"].forEach(k=>{const b=document.getElementById("btn-"+k);if(b)b.classList.toggle("on",m===k);});renderPipe();}
 function pipeIcon(s){return s==="done"?"✓":s==="doing"?"◉":s==="ready"?"●":"○";}
 function runFlow(){
   // workflow_dispatch: kick off first queued job per stage (like matrix), keep single in_progress rule
@@ -353,6 +391,8 @@ function renderPipe(){
   const jobBtn=(t)=>`<button class="job" onclick="advance(${t.id})"><span class="st st-${t.status}">${pipeIcon(t.status)}</span><span><span class="nm">${ICON[t.cat]||""} ${t.name}</span><small>${t.cat} · ${t.status==="plan"?"queued":t.status==="ready"?"waiting":t.status==="doing"?"in_progress":"success"} · ~${t.mins}m</small></span></button>`;
   if(window._pipeMode==="grid"){
     box.innerHTML=`<div class="jobs-grid">${state.tasks.map(jobBtn).join("")}</div>`;
+  } else if(window._pipeMode==="canvas"){
+    renderCanvas(box);
   } else {
     const cats=["Body","Space","Fuel","Mind","Soul"];
     box.innerHTML=`<div class="lanes">`+cats.map(c=>{
@@ -368,7 +408,103 @@ function renderPipe(){
   });
   document.getElementById("pipe-log").innerHTML=lines.join("\n")||"$ waiting for first run…";
 }
+/* ── infinite canvas engine (pan / zoom / drag / neon edges / timer badges) ── */
+window._cv = window._cv || {x:40, y:20, k:0.9};
+function cvLayout(){
+  // clusters left→right = time flow Sáng→Tối ; ensure pos for every task
+  const cats=["Body","Space","Fuel","Mind","Soul"];
+  state.pos = state.pos || {};
+  cats.forEach((c,ci)=>{
+    state.tasks.filter(t=>t.cat===c).forEach((t,ji)=>{
+      if(!state.pos[t.id]) state.pos[t.id]={x:ci*292+24, y:ji*132+52};
+    });
+  });
+}
+function fmtSpent(ms){const m=Math.max(0,Math.round(ms/60000));return m<60?m+"m":Math.floor(m/60)+"h"+(m%60?m%60+"m":"");}
+function renderCanvas(box){
+  cvLayout();
+  const ICON={Body:"🌿",Space:"🧺",Fuel:"☕",Mind:"💡",Soul:"🌊"};
+  const cats=["Body","Space","Fuel","Mind","Soul"];
+  const NW=252, NH=118;
+  // cluster boxes
+  const clusters=cats.map((c,ci)=>{
+    const pts=Object.values(state.pos);
+    const mine=state.tasks.filter(t=>t.cat===c).map(t=>state.pos[t.id]);
+    if(!mine.length)return "";
+    const x=Math.min(...mine.map(p=>p.x))-18, y=Math.min(...mine.map(p=>p.y))-46;
+    const r=Math.max(...mine.map(p=>p.x))+NW+18, b=Math.max(...mine.map(p=>p.y))+NH+18;
+    const ok=state.tasks.filter(t=>t.cat===c&&t.status==="done").length;
+    return `<div class="cluster" style="left:${x}px;top:${y}px;width:${r-x}px;height:${b-y}px"></div>`+
+           `<div class="cluster-tag" style="left:${x+14}px;top:${y-13}px">${c} · ${ok}/${mine.length} ✓</div>`;
+  }).join("");
+  // edges: chain inside lane + bridge lane→lane (time flow)
+  const byId={}; state.tasks.forEach(t=>byId[t.id]=t);
+  const P=(t,port)=>{const p=state.pos[t.id];return port==="top"?[p.x+NW/2,p.y]:port==="bot"?[p.x+NW/2,p.y+NH]:[p.x+NW/2,p.y+NH/2];};
+  const edge=(a,b,cls)=>{const [x1,y1]=P(a,"bot"),[x2,y2]=P(b,"top");
+    const my=(y1+y2)/2;return `<path class="edge ${cls}" d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}"/>`;};
+  let edges="";
+  cats.forEach((c)=>{
+    const chain=state.tasks.filter(t=>t.cat===c).sort((p,q)=>state.pos[p.id].y-state.pos[q.id].y);
+    chain.forEach((t,i)=>{ if(!i)return; const s=chain[i-1];
+      edges+=edge(s,t,(s.status==="done"||s.status==="doing")?"lit flow":""); });
+  });
+  for(let i=1;i<cats.length;i++){
+    const prev=state.tasks.filter(t=>t.cat===cats[i-1]).sort((p,q)=>state.pos[q.id].y-state.pos[p.id].y)[0];
+    const next=state.tasks.filter(t=>t.cat===cats[i]).sort((p,q)=>state.pos[p.id].y-state.pos[q.id].y)[0];
+    if(prev&&next)edges+=edge(prev,next,(prev.status==="done")?"lit":"");
+  }
+  const W=cats.length*292+120, H=Math.max(...state.tasks.map(t=>state.pos[t.id].y))+220;
+  const nodes=state.tasks.map(t=>{
+    const p=state.pos[t.id];
+    const spent=(t.status==="doing"||t.status==="ready")?Date.now()-t.ts:(t.status==="done"&&t.doneAt?Math.max(0,t.doneAt-t.ts):0);
+    const pct=Math.min(100,Math.round(spent/(Math.max(1,t.mins)*60000)*100));
+    const over=spent>t.mins*60000&&t.status!=="done";
+    const st=t.status==="plan"?"queued":t.status==="ready"?"waiting":t.status==="doing"?"in_progress":"success";
+    const btn=t.status==="doing"?"CONFIRM DONE ✓":t.status==="done"?"↺ replay":t.status==="ready"?"▶ start":"→ ready";
+    return `<div class="cnode ${t.status==="doing"?"doing-now":""} ${t.status==="done"?"done":""}" data-id="${t.id}" style="left:${p.x}px;top:${p.y}px">`+
+      `<div class="top"><span class="st st-${t.status}">${pipeIcon(t.status)}</span><span class="nm">${ICON[t.cat]||""} ${t.name}</span></div>`+
+      `<div class="meta">${t.cat} · <b>${st}</b> · target ~${t.mins}m</div>`+
+      `<span class="tbadge ${over?"over":""}">⏱ Spent ${fmtSpent(spent)} / ${t.mins}m · ${t.status==="done"?100:pct}%</span>`+
+      `<button class="go ${t.status==="doing"?"primary":""}" data-go="${t.id}">${btn}</button></div>`;
+  }).join("");
+  box.innerHTML=`<div class="canvas-wrap" id="cvwrap"><div class="canvas-world" id="cvworld" style="width:${W}px;height:${H}px">`+
+    `<svg class="edges" width="${W}" height="${H}">${edges}</svg>${clusters}${nodes}</div>`+
+    `<div class="canvas-hint">drag nền = pan · lăn chuột = zoom · kéo thẻ = sắp lại · Sáng → Tối</div>`+
+    `<div class="canvas-bar"><button onclick="cvZoom(1.2)">＋</button><button onclick="cvZoom(0.83)">－</button><button onclick="cvFit()">⤢ fit</button><button onclick="cvReset()">↺ layout</button></div></div>`;
+  applyCvTransform(); bindCanvas();
+}
+function applyCvTransform(){const w=document.getElementById("cvworld");if(!w)return;
+  w.style.transform=`translate(${window._cv.x}px,${window._cv.y}px) scale(${window._cv.k})`;}
+function cvZoom(f){const cv=window._cv;cv.k=Math.min(1.6,Math.max(.35,cv.k*f));applyCvTransform();}
+function cvFit(){window._cv={x:40,y:20,k:.9};const w=document.getElementById("cvwrap");
+  if(w)window._cv.k=Math.min(.95,(w.clientWidth-40)/1520);applyCvTransform();}
+function cvReset(){if(state.pos)state.pos={};save();renderPipe();}
+function bindCanvas(){
+  const wrap=document.getElementById("cvwrap"), world=document.getElementById("cvworld");
+  if(!wrap||!world)return; const cv=window._cv;
+  // pan background
+  let pan=null;
+  wrap.onmousedown=e=>{if(e.target.closest(".cnode"))return;pan={x:e.clientX-cv.x,y:e.clientY-cv.y};wrap.classList.add("panning");};
+  window.onmousemove=e=>{
+    if(pan){cv.x=e.clientX-pan.x;cv.y=e.clientY-pan.y;applyCvTransform();return;}
+    if(dragN){const dx=(e.clientX-dragN.x0)/cv.k, dy=(e.clientY-dragN.y0)/cv.k;
+      if(Math.abs(dx)+Math.abs(dy)>3)dragN.moved=true;
+      const p=state.pos[dragN.id];p.x=dragN.px0+dx;p.y=dragN.py0+dy;
+      const el=world.querySelector(`[data-id="${dragN.id}"]`);if(el){el.style.left=p.x+"px";el.style.top=p.y+"px";}}
+  };
+  window.onmouseup=()=>{pan=null;wrap.classList.remove("panning");
+    if(dragN){if(dragN.moved){save();renderPipe();}dragN=null;}};
+  wrap.onwheel=e=>{e.preventDefault();cvZoom(e.deltaY<0?1.1:0.9);},{passive:false};
+  // drag nodes
+  let dragN=null;
+  world.querySelectorAll(".cnode").forEach(el=>{
+    el.addEventListener("pointerdown",e=>{if(e.target.dataset.go!==undefined)return;
+      dragN={id:+el.dataset.id,x0:e.clientX,y0:e.clientY,px0:state.pos[+el.dataset.id].x,py0:state.pos[+el.dataset.id].y,moved:false};});
+  });
+  world.querySelectorAll("[data-go]").forEach(b=>b.onclick=e=>{e.stopPropagation();advance(+b.dataset.go);});
+}
 setInterval(checkStuck,30000);
+setInterval(()=>{if(window._pipeMode==="canvas")renderPipe();},60000);
 render();
 </script>
 </body>
