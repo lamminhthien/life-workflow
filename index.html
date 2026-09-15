@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Life Workflow — Continuous Flow Tracker</title>
+<style>
+  :root{
+    --ink:#2e3d34; --mut:#75867c;
+    --glass:rgba(255,255,255,.62); --glass2:rgba(255,255,255,.78);
+    --line:rgba(255,255,255,.9);
+    --leaf:#3d9d6d; --leaf-deep:#2a7a53; --mint:#dff0e4; --sand:#f6f0df; --sky:#e3eff0;
+    --warn:#a86f14;
+    --shadow:0 8px 32px rgba(90,120,100,.14);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;color:var(--ink);
+    font-family:"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+    background:linear-gradient(180deg,#eef5ee 0%,#f8f3e6 48%,#e6eef0 100%);
+    min-height:100vh; line-height:1.5;
+  }
+  /* natural blobs — transparency + air */
+  body::before,body::after{content:"";position:fixed;inset:auto;z-index:-1;filter:blur(70px);opacity:.55;pointer-events:none}
+  body::before{width:520px;height:520px;left:-140px;top:-140px;background:radial-gradient(circle,#bfe6c9,transparent 65%)}
+  body::after{width:620px;height:620px;right:-180px;top:20%;background:radial-gradient(circle,#cfe6ef 0%,#f3e9cfe0 45%,transparent 70%)}
+  header{padding:36px 20px 10px;max-width:1000px;margin:auto;text-align:center}
+  h1{margin:0;font-size:34px;font-weight:800;letter-spacing:-.5px}
+  h1 span{font-weight:400}
+  p.sub{color:var(--mut);margin:8px auto 0;max-width:620px;font-size:15px}
+  p.sub b{color:var(--leaf-deep);font-weight:700}
+  .breath{display:inline-flex;align-items:center;gap:8px;margin-top:12px;color:var(--mut);font-size:13px}
+  .breath i{width:10px;height:10px;border-radius:50%;background:var(--leaf);display:inline-block;animation:breathe 4s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.6);opacity:1}}
+  .flowbar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0;justify-content:center}
+  .flowbar span{background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--line);box-shadow:var(--shadow);
+    padding:8px 14px;border-radius:999px;font-size:13px;color:var(--mut)}
+  .flowbar span b{color:var(--leaf-deep)}
+  main{max-width:1000px;margin:auto;padding:0 20px 60px;display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
+  @media(max-width:800px){main{grid-template-columns:1fr}}
+  .card{background:var(--glass);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 6px;font-size:16px;letter-spacing:-.2px}
+  .muted{color:var(--mut);font-size:13px}
+  #stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{flex:1;min-width:110px;background:var(--glass2);backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:18px;padding:12px 8px;text-align:center;box-shadow:var(--shadow)}
+  .stat b{font-size:24px;display:block;color:var(--leaf-deep)}
+  .task{display:flex;align-items:center;gap:12px;padding:12px 12px;border:1px solid rgba(255,255,255,.9);
+    border-radius:18px;margin:9px 0;background:rgba(255,255,255,.68);box-shadow:0 2px 12px rgba(90,120,100,.08);
+    transition:transform .15s ease, box-shadow .15s ease}
+  .task:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(90,120,100,.14)}
+  .task.done{opacity:.62}
+  .task.doing-now{border-color:#9edcbb;background:rgba(232,247,238,.9);animation:glow 3s ease-in-out infinite}
+  @keyframes glow{0%,100%{box-shadow:0 0 0 rgba(61,157,109,0)}50%{box-shadow:0 0 22px rgba(61,157,109,.25)}}
+  .task .name{flex:1;font-weight:550}.task .name small{display:block;color:var(--mut);font-weight:400;font-size:12px;margin-top:2px}
+  .pill{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid transparent;font-weight:700}
+  .pill.plan{background:#eef1f3;color:#6b7d8a}.pill.ready{background:#fdf1d7;color:var(--warn)}
+  .pill.doing{background:var(--mint);color:var(--leaf-deep)}.pill.done{background:#dcf2e4;color:var(--leaf-deep)}
+  button{cursor:pointer;border:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.9);color:var(--ink);
+    border-radius:999px;padding:9px 14px;font-size:13px;font-weight:600;transition:all .15s}
+  button:hover{transform:translateY(-1px)}
+  button.primary{background:linear-gradient(135deg,#43a377,#8ed5ae);color:#fff;border:none;
+    box-shadow:0 4px 14px rgba(61,157,109,.35)}
+  input,select,textarea{width:100%;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.06);
+    color:var(--ink);border-radius:14px;padding:10px 12px;margin:6px 0;font-size:14px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:#9edcbb;box-shadow:0 0 0 3px rgba(61,157,109,.15)}
+  .row{display:flex;gap:8px}.row button{flex:1}
+  #nudge{background:rgba(255,244,224,.85);border-color:#f0d9a8;display:none}
+  #nudge.show{display:block}
+  ul{padding-left:18px;margin:8px 0}
+  .log{font-size:12.5px;color:var(--mut);max-height:170px;overflow:auto}
+  label{display:flex;gap:8px;align-items:flex-start;margin:7px 0;cursor:pointer}
+  .quote{text-align:center;color:var(--mut);font-style:italic;font-size:13px;margin:4px 0 0}
+  /* ── CI/CD pipeline ── */
+  .pipe{grid-column:1/-1;overflow:hidden}
+  .run-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(255,255,255,.7);
+    border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:10px 0;font-size:13px}
+  .run-dot{width:11px;height:11px;border-radius:50%;background:#9aa5b1;flex:none}
+  .run-dot.ok{background:var(--leaf)} .run-dot.run{background:#2f81f7;animation:breathe 1.6s infinite}
+  .run-dot.wait{background:#d4a017;animation:breathe 2.4s infinite}
+  .run-head code{background:#eef3ee;border-radius:8px;padding:2px 8px;font-size:12px}
+  .pipe-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  .pipe-controls button.on{background:var(--ink);color:#fff}
+  .lanes{display:flex;gap:12px;align-items:stretch;overflow-x:auto;padding:6px 2px 10px}
+  .lane{flex:1;min-width:170px;background:rgba(255,255,255,.55);border:1px solid var(--line);
+    border-radius:16px;padding:10px;position:relative}
+  .lane h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut)}
+  .lane:not(:last-child)::after{content:"→";position:absolute;right:-13px;top:18px;color:var(--leaf-deep);
+    background:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;display:flex;align-items:center;justify-content:center;
+    box-shadow:var(--shadow);z-index:1}
+  .job{display:flex;gap:9px;align-items:flex-start;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.06);
+    border-radius:13px;padding:9px 10px;margin:0 0 8px;cursor:pointer;text-align:left;width:100%;position:relative}
+  .job:hover{transform:translateY(-1px)}
+  .job small{display:block;color:var(--mut);font-weight:400;font-size:11px}
+  .job .nm{font-size:13px;font-weight:650;line-height:1.3}
+  .st{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:800;margin-top:1px}
+  .st-plan{background:#eef1f3;color:#8a97a3;border:2px solid #d4dbe1}
+  .st-ready{background:#fef3c7;color:#a86f14;border:2px solid #f0d48a;animation:breathe 2s infinite}
+  .st-doing{background:#dbeafe;color:#1d4ed8;border:2px solid #93c5fd;animation:spinPulse 1.2s linear infinite}
+  @keyframes spinPulse{0%{box-shadow:0 0 0 0 rgba(47,129,247,.4)}100%{box-shadow:0 0 0 9px rgba(47,129,247,0)}}
+  .st-done{background:#3d9d6d;color:#fff;border:2px solid #3d9d6d}
+  .jobs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;padding:6px 2px}
+  .jobs-grid .job{margin:0}
+  .conn{height:14px;width:2px;background:linear-gradient(#9edcbb,#d5e5db);margin:-4px auto 4px;border-radius:2px}
+  .pipe-log{background:#25312b;color:#cfe8d6;border-radius:14px;padding:12px;font-family:ui-monospace,Menlo,monospace;
+    font-size:12px;max-height:150px;overflow:auto;margin-top:10px;white-space:pre-wrap}
+  .pipe-log .g{color:#7ee2a8}.pipe-log .y{color:#f5d67b}.pipe-log .b{color:#8ab8ff}
+</style>
+</head>
+<body>
+<header>
+  <h1>🍃 Life Workflow <span style="font-weight:300">— breathe & flow</span></h1>
+  <p class="sub">Every action is continuous: <b>PLAN → READY → ACTION → CONFIRM → REMAIN / CHANGE → NEXT</b>. No pause, no stuck time.</p>
+  <div class="breath"><i></i> inhale · do one small thing · exhale <i></i></div>
+  <p class="quote">“Look at tree / beach / wind — then continue.” 🌊</p>
+  <div class="flowbar">
+    <span><b>1 PLAN</b> decide next</span>
+    <span><b>2 READY</b> prepare 1-min</span>
+    <span><b>3 ACTION</b> do it</span>
+    <span><b>4 CONFIRM</b> click Done ✓</span>
+    <span><b>5 REMAIN/CHANGE</b> keep or switch</span>
+  </div>
+</header>
+<main>
+  <div class="card pipe">
+    <h2>⚡ Life Pipeline <span class="muted">— like GitHub Actions CI/CD</span></h2>
+    <p class="muted">Workflow <code>life.yml</code> · every job flows <b>queued → waiting → in_progress → success</b>. Click a job to advance it. Tree = stages, Grid = jobs matrix.</p>
+    <div class="run-head"><span class="run-dot" id="run-dot"></span><b id="run-title">life.yml</b><code id="run-branch">branch: life/main</code><code id="run-count"></code><span class="muted" id="run-sub"></span></div>
+    <div class="pipe-controls">
+      <button id="btn-tree" class="on" onclick="setPipeMode('tree')">🌳 Tree</button>
+      <button id="btn-grid" onclick="setPipeMode('grid')">▦ Grid</button>
+      <button class="primary" onclick="runFlow()">▶ Run workflow</button>
+      <button onclick="resetDay()">↺ Reset run</button>
+    </div>
+    <div id="pipe"></div>
+    <div class="pipe-log" id="pipe-log"></div>
+  </div>
+  <section>
+    <div id="stats">
+      <div class="stat"><b id="s-done">0</b><span class="muted">done today ✓</span></div>
+      <div class="stat"><b id="s-flow">100%</b><span class="muted">flow (no stuck)</span></div>
+      <div class="stat"><b id="s-variety">0</b><span class="muted">variety kinds</span></div>
+      <div class="stat"><b id="s-streak">0</b><span class="muted">day streak</span></div>
+    </div>
+
+    <div class="card" id="nudge">
+      <h2>⚠️ Anti-Stuck Nudge</h2>
+      <p class="muted" id="nudge-text"></p>
+      <div class="row">
+        <button onclick="shrinkTask()">Do 2-min version</button>
+        <button onclick="switchTask()">CHANGE to other task</button>
+        <button class="primary" onclick="dismissNudge()">I'm flowing ✓</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Now / Next — click to confirm</h2>
+      <p class="muted">Rule: only ONE in ACTION. If READY or ACTION &gt; <span id="stuck-label">15</span> min without CONFIRM → nudge. Every click keeps flow alive.</p>
+      <div class="row">
+        <select id="filter"><option value="">All kinds</option><option>Body</option><option>Space</option><option>Fuel</option><option>Mind</option><option>Soul</option></select>
+        <button onclick="render()">Filter</button>
+        <button onclick="resetDay()">Reset day</button>
+      </div>
+      <div id="list"></div>
+      <h2 style="margin-top:14px">+ Add action</h2>
+      <div class="row">
+        <input id="new-name" placeholder="e.g. tưới cây / water plants" />
+        <select id="new-cat"><option>Body</option><option>Space</option><option>Fuel</option><option>Mind</option><option>Soul</option></select>
+        <button class="primary" onclick="addTask()">Add</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>📜 Today log</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>😶‍🌫️ Why is life boring?</h2>
+      <p class="muted">Boredom = same input, no nature, no people, no creation, no rest. Check 60 sec:</p>
+      <label class="muted"><input type="checkbox" id="b1" style="width:auto"> Last 3 actions were same kind / same room</label><br>
+      <label class="muted"><input type="checkbox" id="b2" style="width:auto"> No tree / beach / wind / sun today</label><br>
+      <label class="muted"><input type="checkbox" id="b3" style="width:auto"> No message / talk to friend today</label><br>
+      <label class="muted"><input type="checkbox" id="b4" style="width:auto"> Only consumed, created nothing (photo, clean, cook, note)</label><br>
+      <label class="muted"><input type="checkbox" id="b5" style="width:auto"> Tired / thirsty / hungry / messy space</label><br>
+      <button class="primary" style="margin-top:8px;width:100%" onclick="diagnose()">Diagnose & prescribe →</button>
+      <div id="prescription" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>🧩 Puzzle / Challenge resolver</h2>
+      <p class="muted">Turn worry into next physical action. Fill → get workflow task.</p>
+      <textarea id="p-what" rows="2" placeholder="Problem là gì? What is stuck?"></textarea>
+      <textarea id="p-why" rows="2" placeholder="Why it matters? / Tại sao cần giải?"></textarea>
+      <textarea id="p-opt" rows="2" placeholder="Options? 2-3 cách có thể thử"></textarea>
+      <button class="primary" style="width:100%" onclick="solvePuzzle()">Convert to NEXT action →</button>
+      <div id="p-out" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>⚙️ Flow settings</h2>
+      <p class="muted">Stuck threshold (minutes, no pause allowed):</p>
+      <input type="number" id="stuck-min" value="15" min="5" max="120" onchange="saveSettings()" />
+      <p class="muted">Principle: REMAIN if it nourishes, CHANGE if it drains. Always have NEXT ready before finishing current.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const DEFAULTS = [
+  ["Get up / Thức dậy","Body",5],["Wash / Rửa mặt, tắm","Body",15],["Drink water / Uống nước","Body",2],
+  ["Drink medicine / Uống thuốc","Body",2],["Skin care","Body",10],["Sleep / Ngủ","Body",420],
+  ["Clean / Dọn dẹp","Space",15],["Clean dust / Lau bụi","Space",10],["Arrange work table","Space",10],
+  ["Arrange kitchen bowls / Xếp chén","Space",10],["Giặt đồ / Laundry","Space",20],["Charging phone / Sạc đt","Space",60],
+  ["Cooking / Nấu ăn","Fuel",30],["Make coffee / Pha cà phê","Fuel",10],
+  ["Làm việc / Deep work","Mind",45],["Take short break / Nghỉ ngắn","Mind",10],["Nghe nhạc / Music","Mind",15],
+  ["Walking / Đi bộ","Soul",20],["Look at tree/beach/wind","Soul",10],["Chụp hình / Take photo","Soul",10],
+  ["Talk to friend - send cool pic","Soul",10],
+];
+let state = JSON.parse(localStorage.getItem("lifewf-v1")||"null") || {
+  tasks: DEFAULTS.map((d,i)=>({id:i,name:d[0],cat:d[1],mins:d[2],status:"plan",ts:Date.now(),doneAt:null})),
+  log:[], settings:{stuck:15}, streak:{date:null,count:0}
+};
+function save(){localStorage.setItem("lifewf-v1",JSON.stringify(state));}
+function saveSettings(){state.settings.stuck=+document.getElementById("stuck-min").value||15;document.getElementById("stuck-label").textContent=state.settings.stuck;save();}
+function fmtT(ts){return new Date(ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});}
+function nextStatus(s){return s==="plan"?"ready":s==="ready"?"doing":s==="doing"?"done":"plan";}
+function advance(id){
+  const t=state.tasks.find(x=>x.id===id); if(!t)return;
+  if(t.status==="doing"){ // confirm done
+    t.status="done"; t.doneAt=Date.now();
+    state.log.unshift(`${fmtT(Date.now())} ✓ ${t.name} (${t.cat}) — REMAIN or CHANGE?`);
+    // auto-suggest next: first plan task
+    const nxt=state.tasks.find(x=>x.status==="plan");
+    if(nxt){nxt.status="ready";nxt.ts=Date.now();state.log.unshift(`${fmtT(Date.now())} → NEXT READY: ${nxt.name}`);}
+    updateStreak();
+  } else if(t.status==="done"){t.status="plan";t.ts=Date.now();}
+  else { // plan->ready->doing : enforce single doing
+    if(nextStatus(t.status)==="doing" && state.tasks.some(x=>x.status==="doing")){alert("Only ONE in ACTION. Confirm current DONE first — no parallel stuck.");return;}
+    t.status=nextStatus(t.status); t.ts=Date.now();
+    state.log.unshift(`${fmtT(Date.now())} ${t.name} → ${t.status.toUpperCase()}`);
+  }
+  dismissNudge(); save(); render();
+}
+function addTask(){
+  const n=document.getElementById("new-name").value.trim(); if(!n)return;
+  const c=document.getElementById("new-cat").value;
+  state.tasks.push({id:Date.now(),name:n,cat:c,mins:10,status:"plan",ts:Date.now()});
+  document.getElementById("new-name").value=""; save(); render();
+}
+function resetDay(){state.tasks.forEach(t=>{t.status="plan";t.doneAt=null;t.ts=Date.now();});state.log=[];save();render();}
+function updateStreak(){
+  const today=new Date().toDateString();
+  if(state.streak.date!==today){state.streak={date:today,count:(state.streak.count||0)+1};}
+}
+function render(){
+  const ICON={Body:"🌿",Space:"🧺",Fuel:"☕",Mind:"💡",Soul:"🌊"};
+  const f=document.getElementById("filter").value;
+  const list=document.getElementById("list"); list.innerHTML="";
+  state.tasks.filter(t=>!f||t.cat===f).forEach(t=>{
+    const d=document.createElement("div"); d.className="task"+(t.status==="done"?" done":"")+(t.status==="doing"?" doing-now":"");
+    const btn = t.status==="doing"?"CONFIRM DONE ✓":t.status==="done"?"↺ again":("→ "+nextStatus(t.status).toUpperCase());
+    d.innerHTML=`<div class="name">${ICON[t.cat]||"•"} ${t.name}<small>${t.cat} · ~${t.mins}min · ${fmtT(t.ts)} · <span class="pill ${t.status}">${t.status.toUpperCase()}</span></small></div>`;
+    const b=document.createElement("button"); b.textContent=btn; if(t.status==="doing")b.className="primary";
+    b.onclick=()=>advance(t.id); d.appendChild(b); list.appendChild(d);
+  });
+  const done=state.tasks.filter(t=>t.status==="done").length;
+  document.getElementById("s-done").textContent=done;
+  document.getElementById("s-variety").textContent=new Set(state.tasks.filter(t=>t.status==="done").map(t=>t.cat)).size+"/5";
+  document.getElementById("s-streak").textContent=state.streak.count||0;
+  // flow score: % not stuck
+  const stuckN=state.tasks.filter(t=>(t.status==="ready"||t.status==="doing")&&(Date.now()-t.ts)>state.settings.stuck*60000).length;
+  document.getElementById("s-flow").textContent=(stuckN===0?"100%":Math.max(0,100-stuckN*25)+"%");
+  document.getElementById("log").innerHTML=state.log.map(l=>"• "+l).join("<br>")||"No actions yet — pick one READY → ACTION → CONFIRM.";
+  document.getElementById("stuck-min").value=state.settings.stuck;
+  document.getElementById("stuck-label").textContent=state.settings.stuck;
+  checkStuck(); renderPipe();
+}
+function checkStuck(){
+  const lim=state.settings.stuck*60000;
+  const s=state.tasks.find(t=>(t.status==="ready"||t.status==="doing")&&(Date.now()-t.ts)>lim);
+  const box=document.getElementById("nudge");
+  if(s){box.classList.add("show");document.getElementById("nudge-text").textContent=`"${s.name}" stuck in ${s.status.toUpperCase()} for >${state.settings.stuck}min. No pause allowed — shrink it or CHANGE. What is your NEXT move?`;box.dataset.id=s.id;}
+  else box.classList.remove("show");
+}
+function dismissNudge(){document.getElementById("nudge").classList.remove("show");}
+function shrinkTask(){const id=+document.getElementById("nudge").dataset.id;const t=state.tasks.find(x=>x.id===id);if(t){t.mins=2;state.log.unshift(`${fmtT(Date.now())} 🔻 ${t.name} shrunk to 2-min version to keep flowing`);save();render();}}
+function switchTask(){const id=+document.getElementById("nudge").dataset.id;const t=state.tasks.find(x=>x.id===id);if(t){t.status="plan";const n=state.tasks.find(x=>x.status==="plan"&&x.id!==id);if(n){n.status="ready";n.ts=Date.now();}save();render();}}
+function diagnose(){
+  const c=[b1.checked,b2.checked,b3.checked,b4.checked,b5.checked]; // ids global
+  let rx="<b>Prescription (do in order, confirm each):</b><ul>";
+  if(c[4])rx+="<li>Uống nước + dọn 1 góc nhỏ (5 min) — body first</li>";
+  if(c[1])rx+="<li>Look at natural tree / beach / wind 10 min + chụp 1 hình</li>";
+  if(c[0])rx+="<li>CHANGE kind: if Mind→Soul, if Space→Fuel (e.g. make coffee + nghe nhạc)</li>";
+  if(c[2])rx+="<li>Talk to friend: send that cool picture now</li>";
+  if(c[3])rx+="<li>Create 1 thing: cook, clean dust, arrange table, photo, note</li>";
+  if(!c.some(Boolean))rx+="<li>Flow is good! REMAIN: pick deep work 45 min + short break 10 min loop.</li>";
+  rx+="</ul><i>Life boring = loop without variety + nature + people + creation. Fix = next 30 min contains 3 different kinds.</i>";
+  document.getElementById("prescription").innerHTML=rx;
+}
+function solvePuzzle(){
+  const w=document.getElementById("p-what").value.trim()||"(unspecified problem)";
+  const o=document.getElementById("p-opt").value.trim()||"try smallest version";
+  const out=`<b>NEXT physical action (≤10 min):</b><br>1. Make coffee / drink water + 2-min tidy to clear head.<br>2. Smallest test of "${w}": ${o.split(",")[0]}.<br>3. Chụp hình / note result, send to 1 friend for feedback.<br><button onclick="addPuzzleTask()">+ Add as task & READY →</button>`;
+  document.getElementById("p-out").innerHTML=out;
+  window._puzzle=w;
+}
+function addPuzzleTask(){
+  if(window._puzzle){state.tasks.push({id:Date.now(),name:"Solve: "+window._puzzle.slice(0,60),cat:"Mind",mins:10,status:"ready",ts:Date.now()});save();render();}
+}
+/* ── pipeline (CI/CD style) ── */
+window._pipeMode = window._pipeMode || "tree";
+function setPipeMode(m){window._pipeMode=m;document.getElementById("btn-tree").classList.toggle("on",m==="tree");document.getElementById("btn-grid").classList.toggle("on",m==="grid");renderPipe();}
+function pipeIcon(s){return s==="done"?"✓":s==="doing"?"◉":s==="ready"?"●":"○";}
+function runFlow(){
+  // workflow_dispatch: kick off first queued job per stage (like matrix), keep single in_progress rule
+  const cats=["Body","Space","Fuel","Mind","Soul"];
+  let started=null;
+  if(!state.tasks.some(t=>t.status==="doing")){
+    started=state.tasks.find(t=>t.status==="ready")||state.tasks.find(t=>t.status==="plan");
+    if(started){ if(started.status==="plan"){started.status="ready";started.ts=Date.now();}
+      // move ready->doing for the one starter
+      if(state.tasks.every(t=>t.status!=="doing")){started.status="doing";started.ts=Date.now();}
+      state.log.unshift(`${fmtT(Date.now())} ▶ workflow_dispatch: ${started.name} → ${started.status.toUpperCase()}`);
+    }
+  } else { state.log.unshift(`${fmtT(Date.now())} ▶ run already in_progress — confirm current job first`); }
+  save(); render();
+}
+function renderPipe(){
+  const box=document.getElementById("pipe"); if(!box)return;
+  const ICON={Body:"🌿",Space:"🧺",Fuel:"☕",Mind:"💡",Soul:"🌊"};
+  const done=state.tasks.filter(t=>t.status==="done").length;
+  document.getElementById("run-count").textContent=`${done}/${state.tasks.length} success`;
+  document.getElementById("run-title").textContent=`life.yml #${new Date().toISOString().slice(5,10)}`;
+  const anyDoing=state.tasks.some(t=>t.status==="doing"), anyReady=state.tasks.some(t=>t.status==="ready");
+  const d=document.getElementById("run-dot"); d.className="run-dot "+(done===state.tasks.length?"ok":anyDoing?"run":anyReady?"wait":"");
+  document.getElementById("run-sub").textContent=done===state.tasks.length?"✓ all jobs passed — REMAIN or start new run":anyDoing?"● 1 job in_progress (only ONE allowed)":anyReady?"● waiting for runner":"○ queued — press Run workflow";
+  const jobBtn=(t)=>`<button class="job" onclick="advance(${t.id})"><span class="st st-${t.status}">${pipeIcon(t.status)}</span><span><span class="nm">${ICON[t.cat]||""} ${t.name}</span><small>${t.cat} · ${t.status==="plan"?"queued":t.status==="ready"?"waiting":t.status==="doing"?"in_progress":"success"} · ~${t.mins}m</small></span></button>`;
+  if(window._pipeMode==="grid"){
+    box.innerHTML=`<div class="jobs-grid">${state.tasks.map(jobBtn).join("")}</div>`;
+  } else {
+    const cats=["Body","Space","Fuel","Mind","Soul"];
+    box.innerHTML=`<div class="lanes">`+cats.map(c=>{
+      const jobs=state.tasks.filter(t=>t.cat===c);
+      const ok=jobs.filter(t=>t.status==="done").length;
+      return `<div class="lane"><h3>${c} · ${ok}/${jobs.length} ✓</h3>`+
+        jobs.map((t,i)=>(i?`<div class="conn"></div>`:"")+jobBtn(t)).join("")+`</div>`;
+    }).join("")+`</div>`;
+  }
+  const lines=state.log.slice(0,12).map(l=>{
+    let cls=""; if(l.includes("✓"))cls="g"; else if(l.includes("READY")||l.includes("waiting"))cls="y"; else if(l.includes("▶")||l.includes("ACTION")||l.includes("doing"))cls="b";
+    return `<span class="${cls}">$ ${l}</span>`;
+  });
+  document.getElementById("pipe-log").innerHTML=lines.join("\n")||"$ waiting for first run…";
+}
+setInterval(checkStuck,30000);
+render();
+</script>
+</body>
+</html>
